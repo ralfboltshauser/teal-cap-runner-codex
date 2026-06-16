@@ -267,10 +267,11 @@ function update(dt) {
       player.dustTimer = 0.05;
     }
   } else {
-    const maxSpeed = sprint ? world.maxSprint : world.maxRun;
+    const gateCrawl = canCrawlGate(crouch, inputX);
+    const maxSpeed = gateCrawl ? 135 : sprint ? world.maxSprint : world.maxRun;
     const accel = player.grounded ? world.accel : world.airAccel;
 
-    if (!route.completed && inputX && !(crouch && player.grounded)) {
+    if (!route.completed && inputX && (!(crouch && player.grounded) || gateCrawl)) {
       const slideDirection = Math.sign(player.vx);
       const wasOpposing = player.grounded && Math.abs(player.vx) > 180 && slideDirection !== 0 && slideDirection !== inputX;
       player.vx += inputX * accel * dt;
@@ -370,16 +371,17 @@ function updateRoute() {
 
 function applyRouteFeatures(crouch) {
   const gateLeft = route.gateX - 42;
-  const gateRight = route.gateX + 38;
+  const gateBlockX = route.gateX - 4;
+  const gateRight = route.gateX + 48;
   if (!route.completed && !route.gateCleared && player.grounded && player.x > gateLeft && player.x < gateRight) {
     if (crouch) {
       route.gateCleared = true;
       route.hint = route.hasParcel ? "Clean duck. Jump the brook ahead." : route.hint;
-    } else if (player.vx > 0) {
-      player.x = gateLeft;
+    } else if (player.vx > 0 && player.x > gateBlockX) {
+      player.x = gateBlockX;
       player.vx = 0;
       player.skidTimer = 0.12;
-      route.hint = "Hold Down to duck under the windmill beam.";
+      route.hint = "Duck here, then crawl under the windmill beam.";
       spawnDust(player.x + 14, player.y - 2, -1);
     }
   }
@@ -408,6 +410,17 @@ function applyRouteFeatures(crouch) {
       spawnPollen(route.gustX + (Math.random() - 0.5) * 90, world.groundY - 80 - Math.random() * 50);
     }
   }
+}
+
+function canCrawlGate(crouch, inputX) {
+  return (
+    crouch &&
+    inputX !== 0 &&
+    player.grounded &&
+    !route.completed &&
+    player.x > route.gateX - 64 &&
+    player.x < route.gateX + 56
+  );
 }
 
 function updateCamera(dt = 1 / 60, snap = false) {
