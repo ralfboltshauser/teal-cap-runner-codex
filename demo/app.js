@@ -243,7 +243,6 @@ function update(dt) {
     route.startTime = sceneTime;
   }
 
-  if (inputX !== 0) player.facing = inputX;
   if (player.dashCooldown > 0) player.dashCooldown -= dt;
   if (player.skidTimer > 0) player.skidTimer -= dt;
   if (player.dustTimer > 0) player.dustTimer -= dt;
@@ -271,15 +270,24 @@ function update(dt) {
     const accel = player.grounded ? world.accel : world.airAccel;
 
     if (!route.completed && inputX && !(crouch && player.grounded)) {
-      const wasOpposing = player.grounded && Math.abs(player.vx) > 180 && Math.sign(player.vx) !== inputX;
+      const slideDirection = Math.sign(player.vx);
+      const wasOpposing = player.grounded && Math.abs(player.vx) > 180 && slideDirection !== 0 && slideDirection !== inputX;
       player.vx += inputX * accel * dt;
       player.vx = clamp(player.vx, -maxSpeed, maxSpeed);
       if (wasOpposing) {
-        player.skidTimer = 0.18;
-        spawnDust(player.x + player.facing * 18, player.y - 3, -player.facing);
+        player.facing = slideDirection;
+        player.skidTimer = Math.max(player.skidTimer, 0.18);
+        if (player.dustTimer <= 0) {
+          spawnDust(player.x + slideDirection * 18, player.y - 3, -slideDirection);
+          player.dustTimer = 0.05;
+        }
+      } else {
+        player.facing = inputX;
       }
     } else if (player.grounded) {
       player.vx = approach(player.vx, 0, world.friction * dt);
+    } else if (inputX !== 0) {
+      player.facing = inputX;
     }
 
     if (!route.completed && player.jumpBuffer > 0 && player.coyoteTimer > 0 && !crouch) {
@@ -556,6 +564,8 @@ function draw() {
     player: {
       x: player.x,
       y: player.y,
+      vx: player.vx,
+      facing: player.facing,
       state: player.state,
       grounded: player.grounded,
     },
