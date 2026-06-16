@@ -8,6 +8,7 @@
     "test:interaction": "node ./test-interaction.js",
     "test:environment-visual": "node ./test-environment-visual.js",
     "test:direction-change": "node ./test-direction-change.js",
+    "test:flower-boost": "node ./test-flower-boost.js",
     "test:rush-loop": "node ./test-rush-loop.js",
     "test:route": "node ./test-route-completion.js"
   },

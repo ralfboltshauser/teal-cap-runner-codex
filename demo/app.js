@@ -45,6 +45,7 @@ const player = {
   frameTime: 0,
   dashTimer: 0,
   dashCooldown: 0,
+  flowerBoostTimer: 0,
   skidTimer: 0,
   dustTimer: 0,
   coyoteTimer: 0,
@@ -143,6 +144,8 @@ function layoutEnvironment() {
     timer: scene.flowers[index]?.timer || 0,
     cooldown: scene.flowers[index]?.cooldown || 0,
     awake: scene.flowers[index]?.awake || false,
+    boosted: scene.flowers[index]?.boosted || false,
+    boostTimer: scene.flowers[index]?.boostTimer || 0,
     dir: index % 2 === 0 ? 1 : -1,
   }));
 
@@ -259,6 +262,7 @@ function update(dt) {
   }
 
   if (player.dashCooldown > 0) player.dashCooldown -= dt;
+  if (player.flowerBoostTimer > 0) player.flowerBoostTimer = Math.max(0, player.flowerBoostTimer - dt);
   if (player.skidTimer > 0) player.skidTimer -= dt;
   if (player.dustTimer > 0) player.dustTimer -= dt;
   if (player.jumpBuffer > 0) player.jumpBuffer -= dt;
@@ -531,6 +535,7 @@ function resetPlayerForLap() {
   player.grounded = true;
   player.dashTimer = 0;
   player.dashCooldown = 0;
+  player.flowerBoostTimer = 0;
   player.skidTimer = 0;
   player.dustTimer = 0;
   player.coyoteTimer = 0;
@@ -549,15 +554,31 @@ function resetLapFlags() {
 function resetFlowers() {
   scene.flowers.forEach((flower) => {
     flower.awake = false;
+    flower.boosted = false;
     flower.timer = 0;
+    flower.boostTimer = 0;
     flower.cooldown = 0;
   });
+}
+
+function triggerFlowerBoost(flower) {
+  flower.boosted = true;
+  flower.boostTimer = 0.65;
+  flower.timer = 0.5;
+  flower.cooldown = Math.max(flower.cooldown, 0.6);
+  flower.awake = true;
+  player.vx = player.facing * Math.max(Math.abs(player.vx), world.dashSpeed * 1.18);
+  player.dashTimer = Math.max(player.dashTimer, 0.08);
+  player.flowerBoostTimer = 0.55;
+  route.score += 18 + route.combo * 6;
+  spawnFlowerBoost(flower.x, world.groundY - 42, player.facing);
 }
 
 function updateEnvironment(dt) {
   scene.flowers.forEach((flower) => {
     if (flower.cooldown > 0) flower.cooldown -= dt;
     if (flower.timer > 0) flower.timer = Math.max(0, flower.timer - dt);
+    if (flower.boostTimer > 0) flower.boostTimer = Math.max(0, flower.boostTimer - dt);
     const near = Math.abs(player.x - flower.x) < 52;
     const moving = Math.abs(player.vx) > 45 || !player.grounded;
     if (near && moving && flower.cooldown <= 0) {
@@ -569,6 +590,9 @@ function updateEnvironment(dt) {
         route.awakenedFlowers += 1;
       }
       spawnPollen(flower.x, world.groundY - 46);
+    }
+    if (!route.completed && route.hasParcel && player.dashTimer > 0 && !flower.boosted && Math.abs(player.x - flower.x) < 42 && Math.abs(player.y - world.groundY) < 120) {
+      triggerFlowerBoost(flower);
     }
   });
 
@@ -665,6 +689,7 @@ function draw() {
       y: player.y,
       vx: player.vx,
       facing: player.facing,
+      flowerBoostTimer: player.flowerBoostTimer,
       state: player.state,
       grounded: player.grounded,
     },
@@ -693,6 +718,12 @@ function draw() {
     },
     cameraX: world.cameraX,
     cameraLead: world.cameraLead,
+    flowers: scene.flowers.map((flower) => ({
+      x: flower.x,
+      awake: flower.awake,
+      boosted: flower.boosted,
+      boostTimer: flower.boostTimer,
+    })),
   };
 }
 
@@ -974,6 +1005,18 @@ function drawGroundDecor(front) {
     if (sx > -80 && sx < world.width + 80 && ((front && flower.x > player.x) || (!front && flower.x <= player.x))) {
       ctx.save();
       ctx.translate(sx, world.groundY + 1);
+      if (flower.boostTimer > 0) {
+        const pulse = 1 - flower.boostTimer / 0.65;
+        ctx.strokeStyle = `rgba(41, 182, 182, ${0.72 - pulse * 0.34})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(0, -30, 22 + pulse * 20, 10 + pulse * 8, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(255, 241, 207, ${0.64 - pulse * 0.28})`;
+        ctx.beginPath();
+        ctx.ellipse(0, -30, 13 + pulse * 15, 6 + pulse * 6, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.scale(flower.dir, 1);
       if (flower.awake) {
         ctx.globalAlpha = 1;
@@ -997,8 +1040,13 @@ function drawForeground() {
   drawGroundDecor(true);
   scene.pollen.forEach((pollen) => {
     const alpha = clamp(1 - pollen.t / pollen.life, 0, 1);
-    ctx.fillStyle = `rgba(238, 197, 85, ${alpha})`;
-    ctx.fillRect(Math.round(worldToScreen(pollen.x)), Math.round(pollen.y), 2, 2);
+    ctx.fillStyle = pollen.boosted ? `rgba(41, 182, 182, ${alpha})` : `rgba(238, 197, 85, ${alpha})`;
+    const size = pollen.size || 2;
+    ctx.fillRect(Math.round(worldToScreen(pollen.x)), Math.round(pollen.y), size, size);
+    if (pollen.boosted) {
+      ctx.fillStyle = `rgba(255, 241, 207, ${alpha * 0.85})`;
+      ctx.fillRect(Math.round(worldToScreen(pollen.x)) - 1, Math.round(pollen.y) - 1, 2, 2);
+    }
   });
 }
 
@@ -1034,8 +1082,37 @@ function drawPlayer() {
   ctx.ellipse(screenX, world.groundY + 4, shadowW, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  if (player.flowerBoostTimer > 0) {
+    const pulse = player.flowerBoostTimer / 0.55;
+    ctx.save();
+    ctx.globalAlpha = 0.82 * pulse;
+    ctx.fillStyle = "#29b6b6";
+    for (let i = 0; i < 5; i += 1) {
+      const x = screenX - player.facing * (42 + i * 22);
+      ctx.fillRect(Math.round(x), Math.round(player.y - 78 + i * 11), 38 - i * 4, 5);
+    }
+    ctx.strokeStyle = "#fff1cf";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(screenX - player.facing * 7, player.y - 56, 42, 24, -0.16 * player.facing, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   ctx.save();
   ctx.translate(Math.round(screenX), Math.round(player.y));
+  if (player.flowerBoostTimer > 0) {
+    const pulse = player.flowerBoostTimer / 0.55;
+    ctx.globalAlpha = 0.75 * pulse;
+    ctx.fillStyle = "#29b6b6";
+    for (let i = 0; i < 4; i += 1) {
+      const x = -player.facing * (34 + i * 16);
+      ctx.fillRect(Math.round(x), -58 + i * 8, 26 - i * 3, 4);
+    }
+    ctx.fillStyle = "#fff1cf";
+    ctx.fillRect(-player.facing * 28, -64, 18, 3);
+    ctx.globalAlpha = 1;
+  }
   ctx.scale(player.facing, 1);
   ctx.drawImage(
     image,
@@ -1212,6 +1289,21 @@ function spawnPollen(x, y) {
       vy: -(10 + Math.random() * 22),
       t: 0,
       life: 0.7 + Math.random() * 0.45,
+    });
+  }
+}
+
+function spawnFlowerBoost(x, y, facing) {
+  for (let i = 0; i < 18; i += 1) {
+    scene.pollen.push({
+      x: x + (Math.random() - 0.5) * 34,
+      y: y + (Math.random() - 0.5) * 18,
+      vx: facing * (34 + Math.random() * 80) + (Math.random() - 0.5) * 18,
+      vy: -(28 + Math.random() * 54),
+      t: 0,
+      life: 0.42 + Math.random() * 0.38,
+      boosted: true,
+      size: Math.random() > 0.45 ? 3 : 2,
     });
   }
 }
