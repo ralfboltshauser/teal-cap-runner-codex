@@ -18,6 +18,7 @@ const world = {
   height: canvas.height,
   routeWidth: 2400,
   cameraX: 0,
+  cameraLead: 0,
   groundY: 430,
   gravity: 1850,
   accel: 2300,
@@ -117,7 +118,7 @@ function resizeCanvas() {
   }
   player.x = clamp(player.x, 48, world.routeWidth - 48);
   layoutEnvironment();
-  updateCamera();
+  updateCamera(1 / 60, true);
   ctx.imageSmoothingEnabled = false;
 }
 
@@ -328,7 +329,7 @@ function update(dt) {
   }
 
   updateRoute();
-  updateCamera();
+  updateCamera(dt);
   updateEnvironment(dt);
   setState(manualPreviewState || chooseState());
   advanceAnimation(dt);
@@ -409,9 +410,13 @@ function applyRouteFeatures(crouch) {
   }
 }
 
-function updateCamera() {
-  const lead = player.facing * Math.min(120, Math.abs(player.vx) * 0.22);
-  const target = player.x - world.width * 0.38 + lead;
+function updateCamera(dt = 1 / 60, snap = false) {
+  const velocityDirection = Math.sign(player.vx);
+  const desiredLead = velocityDirection * Math.min(120, Math.abs(player.vx) * 0.22);
+  world.cameraLead = snap
+    ? desiredLead
+    : approach(world.cameraLead, desiredLead, 360 * dt);
+  const target = player.x - world.width * 0.38 + world.cameraLead;
   world.cameraX = clamp(target, 0, Math.max(0, world.routeWidth - world.width));
 }
 
@@ -432,6 +437,7 @@ function resetRoute() {
   player.dustTimer = 0;
   player.coyoteTimer = 0;
   player.jumpBuffer = 0;
+  world.cameraLead = 0;
   route.started = false;
   route.hasParcel = false;
   route.delivered = false;
@@ -452,7 +458,7 @@ function resetRoute() {
     flower.timer = 0;
     flower.cooldown = 0;
   });
-  updateCamera();
+  updateCamera(1 / 60, true);
 }
 
 function updateEnvironment(dt) {
@@ -585,6 +591,7 @@ function draw() {
       shortcutHit: route.shortcutHit,
     },
     cameraX: world.cameraX,
+    cameraLead: world.cameraLead,
   };
 }
 
