@@ -592,10 +592,8 @@ function drawWorld() {
   ctx.fillRect(0, 0, w, h);
 
   drawSunHaze();
-  drawFrame(envSheets.hills, environment.sprites.hills, 0, -world.cameraX * 0.18, 198, 1, false, "top-left");
-  drawFrame(envSheets.hills, environment.sprites.hills, 0, 960 - world.cameraX * 0.18, 198, 1, false, "top-left");
+  drawLandscapeDepth();
   drawBirds();
-  drawDistantMeadowShapes();
   drawGround();
   drawRouteFeatures();
   drawRouteObjects(false);
@@ -613,24 +611,70 @@ function drawSunHaze() {
   ctx.fillRect(0, 0, world.width, world.height);
 }
 
-function drawDistantMeadowShapes() {
-  ctx.fillStyle = "rgba(37, 78, 67, 0.46)";
-  const startA = Math.floor(world.cameraX * 0.4 / 124) * 124 - 124;
-  for (let x = startA; x < world.cameraX * 0.4 + world.width + 160; x += 124) {
-    ctx.fillRect(x - world.cameraX * 0.4, 314 + ((x / 124) % 2) * 12, 74, 116);
+function drawLandscapeDepth() {
+  const farBase = clamp(world.groundY - 445, world.height * 0.28, world.height * 0.56);
+  const midBase = clamp(world.groundY - 340, world.height * 0.38, world.height * 0.68);
+  const nearBase = clamp(world.groundY - 230, world.height * 0.48, world.height * 0.76);
+
+  drawRidgeLayer(0.12, farBase, 58, 270, "#315f57", 0.44, 1.8);
+  drawRidgeLayer(0.22, midBase, 46, 230, "#28534b", 0.34, 4.3);
+  drawMeadowBand(0.34, nearBase, world.groundY - 130, "#24493d", 0.23, 128);
+  drawMeadowBand(0.48, world.groundY - 174, world.groundY - 72, "#1e3d34", 0.20, 92);
+  drawAtmosphericWash(farBase, world.groundY - 72);
+}
+
+function drawRidgeLayer(speed, baseY, height, spacing, color, alpha, phase) {
+  const camera = world.cameraX * speed;
+  const start = Math.floor(camera / spacing) * spacing - spacing;
+  const end = camera + world.width + spacing * 2;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(start - camera, world.groundY - 58);
+  for (let x = start; x <= end; x += spacing) {
+    const peakX = x + spacing * 0.5;
+    const peakY = baseY - height * (0.72 + Math.sin(x * 0.011 + phase) * 0.18);
+    const valleyY = baseY + Math.sin(x * 0.007 + phase) * 14;
+    ctx.lineTo(x - camera, valleyY);
+    ctx.lineTo(peakX - camera, peakY);
+    ctx.lineTo(x + spacing - camera, valleyY + Math.cos(x * 0.009 + phase) * 12);
   }
-  ctx.fillStyle = "rgba(22, 59, 54, 0.34)";
-  const startB = Math.floor(world.cameraX * 0.55 / 168) * 168 - 168;
-  for (let x = startB; x < world.cameraX * 0.55 + world.width + 220; x += 168) {
-    const sx = x - world.cameraX * 0.55;
-    ctx.fillRect(sx, 348, 34, 82);
-    ctx.beginPath();
-    ctx.moveTo(sx - 24, 350);
-    ctx.lineTo(sx + 17, 304);
-    ctx.lineTo(sx + 58, 350);
-    ctx.closePath();
-    ctx.fill();
+  ctx.lineTo(end - camera, world.groundY - 58);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawMeadowBand(speed, topY, bottomY, color, alpha, spacing) {
+  const camera = world.cameraX * speed;
+  const start = Math.floor(camera / spacing) * spacing - spacing;
+  const end = camera + world.width + spacing * 2;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(start - camera, bottomY);
+  for (let x = start; x <= end; x += spacing) {
+    const y = topY + Math.sin(x * 0.013) * 12 + Math.cos(x * 0.021) * 8;
+    ctx.lineTo(x - camera, y);
   }
+  ctx.lineTo(end - camera, bottomY);
+  ctx.lineTo(start - camera, bottomY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawAtmosphericWash(topY, bottomY) {
+  const haze = ctx.createLinearGradient(0, topY, 0, bottomY);
+  haze.addColorStop(0, "rgba(147, 214, 200, 0.10)");
+  haze.addColorStop(0.46, "rgba(111, 180, 164, 0.20)");
+  haze.addColorStop(1, "rgba(65, 101, 82, 0.08)");
+  ctx.fillStyle = haze;
+  ctx.fillRect(0, topY - 24, world.width, bottomY - topY + 64);
 }
 
 function drawBirds() {
