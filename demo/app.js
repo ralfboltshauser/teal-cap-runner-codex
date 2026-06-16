@@ -52,15 +52,22 @@ const player = {
 };
 
 const route = {
-  name: "Morning Ribbon",
+  name: "Morning Rush",
   item: "teal ribbon",
   started: false,
   hasParcel: false,
   delivered: false,
   completed: false,
+  roundDuration: Number(new URLSearchParams(window.location.search).get("duration") || 120),
   startTime: 0,
   completeTime: 0,
-  bestTime: Number(localStorage.getItem("tealCapRunner.bestMorningRibbon") || 0),
+  bestScore: Number(localStorage.getItem("tealCapRunner.bestMorningRushScore") || 0),
+  score: 0,
+  deliveries: 0,
+  combo: 0,
+  bestCombo: 0,
+  mistakes: 0,
+  difficulty: 1,
   pickupX: 170,
   targetX: 2200,
   gateX: 760,
@@ -71,7 +78,7 @@ const route = {
   gateCleared: false,
   brookClean: true,
   shortcutHit: false,
-  hint: "Pick up the teal ribbon and deliver it to the windmill marker.",
+  hint: "Pick up ribbons. Two-minute rush: chain clean deliveries.",
 };
 
 let plan;
@@ -107,9 +114,7 @@ function resizeCanvas() {
   world.routeWidth = Math.max(2200, Math.round(nextWidth * 3.15));
   world.groundY = Math.max(310, nextHeight - 112);
   route.targetX = world.routeWidth - 190;
-  route.gateX = Math.round(world.routeWidth * 0.34);
-  route.brookX = Math.round(world.routeWidth * 0.56);
-  route.gustX = Math.round(world.routeWidth * 0.74);
+  configureRouteObstacles();
 
   if (wasGrounded || player.y > world.groundY) {
     player.y = world.groundY;
@@ -120,6 +125,15 @@ function resizeCanvas() {
   layoutEnvironment();
   updateCamera(1 / 60, true);
   ctx.imageSmoothingEnabled = false;
+}
+
+function configureRouteObstacles() {
+  const lap = route.deliveries;
+  const d = route.difficulty;
+  const drift = ((lap % 4) - 1.5) * 0.018;
+  route.gateX = Math.round(world.routeWidth * clamp(0.32 + drift - d * 0.006, 0.26, 0.38));
+  route.brookX = Math.round(world.routeWidth * clamp(0.54 - drift * 0.7, 0.48, 0.61));
+  route.gustX = Math.round(world.routeWidth * clamp(0.73 + drift + d * 0.004, 0.66, 0.8));
 }
 
 function layoutEnvironment() {
@@ -337,36 +351,80 @@ function update(dt) {
 }
 
 function updateRoute() {
+  if (route.started && !route.completed && sceneTime - route.startTime >= route.roundDuration) {
+    finishRound("Time up. Press R to rush again.");
+    return;
+  }
+
   if (!route.hasParcel && !route.delivered && Math.abs(player.x - route.pickupX) < 64 && Math.abs(player.y - world.groundY) < 90) {
     route.hasParcel = true;
     route.started = true;
     route.startTime = route.startTime || sceneTime;
-    route.hint = "Deliver the ribbon to the windmill marker.";
+    route.hint = "Deliver fast. Clean moves build combo.";
     spawnPollen(route.pickupX, world.groundY - 70);
     triggerNearbyFlowers();
   }
 
   if (route.hasParcel && !route.delivered && Math.abs(player.x - route.targetX) < 82 && Math.abs(player.y - world.groundY) < 110) {
-    route.delivered = true;
-    route.completed = true;
-    route.completeTime = Math.max(0.01, sceneTime - route.startTime);
-    route.hasParcel = false;
-    route.hint = "Delivered. Press R to run it cleaner.";
-    player.vx = 0;
-    player.vy = 0;
-    player.dashTimer = 0;
-    player.skidTimer = 0;
-    route.bestTime = route.bestTime ? Math.min(route.bestTime, route.completeTime) : route.completeTime;
-    localStorage.setItem("tealCapRunner.bestMorningRibbon", String(route.bestTime));
-    scene.flowers.forEach((flower) => {
-      flower.awake = true;
-      flower.timer = 0.5;
-    });
-    for (let i = 0; i < 9; i += 1) {
-      spawnPollen(route.targetX + (Math.random() - 0.5) * 64, world.groundY - 72 - Math.random() * 40);
-    }
-    spawnDust(player.x, player.y, -player.facing);
+    completeDelivery();
   }
+}
+
+function completeDelivery() {
+  const clean = route.gateCleared && route.brookClean && route.softLanding;
+  const gustBonus = route.shortcutHit ? 60 : 0;
+  const flowerBonus = route.awakenedFlowers * 12;
+  const comboBonus = clean ? route.combo * 35 : 0;
+  const deliveryScore = 160 + flowerBonus + gustBonus + comboBonus + route.difficulty * 20;
+
+  route.score += deliveryScore;
+  route.deliveries += 1;
+  route.combo = clean ? route.combo + 1 : 0;
+  route.bestCombo = Math.max(route.bestCombo, route.combo);
+  route.difficulty = clamp(1 + Math.floor(route.deliveries / 2), 1, 7);
+  route.hint = clean ? `Clean drop +${deliveryScore}. Next order.` : `Drop +${deliveryScore}. Recover the combo.`;
+
+  scene.flowers.forEach((flower) => {
+    flower.awake = true;
+    flower.timer = 0.5;
+  });
+  for (let i = 0; i < 9; i += 1) {
+    spawnPollen(route.targetX + (Math.random() - 0.5) * 64, world.groundY - 72 - Math.random() * 40);
+  }
+  spawnDust(player.x, player.y, -player.facing);
+
+  if (sceneTime - route.startTime >= route.roundDuration) {
+    finishRound("Final delivery. Press R to rush again.");
+  } else {
+    startNextDelivery();
+  }
+}
+
+function finishRound(hint) {
+  route.completed = true;
+  route.delivered = true;
+  route.hasParcel = false;
+  route.completeTime = Math.min(route.roundDuration, Math.max(0.01, sceneTime - route.startTime));
+  route.hint = hint;
+  player.vx = 0;
+  player.vy = 0;
+  player.dashTimer = 0;
+  player.skidTimer = 0;
+  route.bestScore = Math.max(route.bestScore, route.score);
+  localStorage.setItem("tealCapRunner.bestMorningRushScore", String(route.bestScore));
+}
+
+function startNextDelivery() {
+  resetPlayerForLap();
+  route.hasParcel = false;
+  route.delivered = false;
+  resetLapFlags();
+  configureRouteObstacles();
+  layoutEnvironment();
+  resetFlowers();
+  scene.dustPuffs = [];
+  scene.stones = [];
+  updateCamera(1 / 60, true);
 }
 
 function applyRouteFeatures(crouch) {
@@ -388,11 +446,13 @@ function applyRouteFeatures(crouch) {
 
   const brookLeft = route.brookX - 62;
   const brookRight = route.brookX + 78;
-  if (!route.completed && player.x > brookLeft && player.x < brookRight && player.grounded) {
+  if (!route.completed && route.brookClean && player.x > brookLeft && player.x < brookRight && player.grounded) {
     if (Math.abs(player.vx) > 40) {
       player.vx *= 0.72;
       route.brookClean = false;
       route.softLanding = false;
+      route.mistakes += 1;
+      route.combo = 0;
       route.hint = "Brook splash. Jump earlier for a cleaner route.";
       if (sceneTime % 0.08 < 0.033) {
         spawnPollen(player.x, world.groundY - 18);
@@ -438,6 +498,31 @@ function worldToScreen(x) {
 }
 
 function resetRoute() {
+  resetPlayerForLap();
+  route.started = false;
+  route.hasParcel = false;
+  route.delivered = false;
+  route.completed = false;
+  route.startTime = 0;
+  route.completeTime = 0;
+  route.score = 0;
+  route.deliveries = 0;
+  route.combo = 0;
+  route.bestCombo = 0;
+  route.mistakes = 0;
+  route.difficulty = 1;
+  resetLapFlags();
+  route.hint = "Pick up ribbons. Two-minute rush: chain clean deliveries.";
+  scene.dustPuffs = [];
+  scene.stones = [];
+  scene.pollen = [];
+  configureRouteObstacles();
+  layoutEnvironment();
+  resetFlowers();
+  updateCamera(1 / 60, true);
+}
+
+function resetPlayerForLap() {
   player.x = 86;
   player.y = world.groundY;
   player.vx = 0;
@@ -451,27 +536,22 @@ function resetRoute() {
   player.coyoteTimer = 0;
   player.jumpBuffer = 0;
   world.cameraLead = 0;
-  route.started = false;
-  route.hasParcel = false;
-  route.delivered = false;
-  route.completed = false;
-  route.startTime = 0;
-  route.completeTime = 0;
+}
+
+function resetLapFlags() {
   route.awakenedFlowers = 0;
   route.softLanding = true;
   route.gateCleared = false;
   route.brookClean = true;
   route.shortcutHit = false;
-  route.hint = "Pick up the teal ribbon and deliver it to the windmill marker.";
-  scene.dustPuffs = [];
-  scene.stones = [];
-  scene.pollen = [];
+}
+
+function resetFlowers() {
   scene.flowers.forEach((flower) => {
     flower.awake = false;
     flower.timer = 0;
     flower.cooldown = 0;
   });
-  updateCamera(1 / 60, true);
 }
 
 function updateEnvironment(dt) {
@@ -594,6 +674,14 @@ function draw() {
       delivered: route.delivered,
       completed: route.completed,
       completeTime: route.completeTime,
+      roundDuration: route.roundDuration,
+      score: route.score,
+      bestScore: route.bestScore,
+      deliveries: route.deliveries,
+      combo: route.combo,
+      bestCombo: route.bestCombo,
+      mistakes: route.mistakes,
+      difficulty: route.difficulty,
       awakenedFlowers: route.awakenedFlowers,
       softLanding: route.softLanding,
       gateX: route.gateX,
@@ -978,6 +1066,9 @@ function drawHud() {
       ? route.completeTime
       : sceneTime - route.startTime
     : 0;
+  const remaining = route.started
+    ? Math.max(0, route.roundDuration - elapsed)
+    : route.roundDuration;
   const progress = clamp(player.x / route.targetX, 0, 1);
   const compact = world.width < 620;
   const hudX = compact ? 10 : 16;
@@ -995,7 +1086,7 @@ function drawHud() {
   ctx.fillRect(hudX, hudY, hudW, 72);
   ctx.fillStyle = "#fff1cf";
   ctx.font = "16px Courier New";
-  ctx.fillText(`${route.name.toUpperCase()}  ${player.state.toUpperCase()}  ${formatTime(elapsed)}`, hudX + 12, hudY + 22);
+  ctx.fillText(`${route.name.toUpperCase()}  ${player.state.toUpperCase()}  ${formatTime(remaining)}  ${route.score} pts`, hudX + 12, hudY + 22);
   ctx.font = "13px Courier New";
   ctx.fillStyle = "#f0dca6";
   ctx.fillText(hint, hudX + 12, hudY + 46);
@@ -1004,7 +1095,7 @@ function drawHud() {
   ctx.fillStyle = route.hasParcel || route.delivered ? "#29b6b6" : "#f0b44b";
   ctx.fillRect(hudX + 12, hudY + 58, Math.round(barW * progress), 6);
   ctx.fillStyle = "#fff1cf";
-  ctx.fillText(`flowers ${route.awakenedFlowers}/${scene.flowers.length}`, hudX + barW + 24, hudY + 64);
+  ctx.fillText(`drop ${route.deliveries} x${route.combo + 1}`, hudX + barW + 24, hudY + 64);
 }
 
 function drawCompletionCard() {
@@ -1012,10 +1103,7 @@ function drawCompletionCard() {
   const h = 258;
   const x = Math.round((world.width - w) / 2);
   const y = Math.round(Math.max(96, world.height * 0.18));
-  const flowerPerfect = route.awakenedFlowers >= scene.flowers.length;
-  const routePerfect = route.gateCleared && route.brookClean && route.shortcutHit;
-  const timeLabel = route.completeTime < 18 ? "Wind-Kissed" : route.completeTime < 28 ? "Swift" : "Fresh";
-  const routeLabel = `${route.gateCleared ? "duck" : "beam"} / ${route.brookClean ? "clean brook" : "splash"} / ${route.shortcutHit ? "gust" : "no gust"}`;
+  const stamp = route.score >= 2600 ? "Courier Ace" : route.score >= 1600 ? "Swift Shift" : "Fresh Start";
 
   ctx.fillStyle = "rgba(21, 18, 13, 0.90)";
   ctx.fillRect(x, y, w, h);
@@ -1025,22 +1113,22 @@ function drawCompletionCard() {
 
   ctx.fillStyle = "#29b6b6";
   ctx.font = "14px Courier New";
-  ctx.fillText("DELIVERY COMPLETE", x + 26, y + 34);
+  ctx.fillText("ROUND COMPLETE", x + 26, y + 34);
   ctx.fillStyle = "#fff1cf";
   ctx.font = "30px Trebuchet MS";
-  ctx.fillText("Morning Ribbon", x + 26, y + 70);
+  ctx.fillText("Morning Rush", x + 26, y + 70);
 
   ctx.font = "16px Courier New";
   ctx.fillStyle = "#f0dca6";
-  ctx.fillText(`Time: ${formatTime(route.completeTime)}   Best: ${formatTime(route.bestTime)}`, x + 28, y + 108);
-  ctx.fillText(`Flowers awakened: ${route.awakenedFlowers}/${scene.flowers.length}`, x + 28, y + 136);
-  ctx.fillText(`Parcel care: ${route.softLanding ? "Soft landing" : "Scuffed but safe"}`, x + 28, y + 164);
-  ctx.fillText(`Route: ${routeLabel}`, x + 28, y + 192);
+  ctx.fillText(`Score: ${route.score}   Best: ${route.bestScore}`, x + 28, y + 108);
+  ctx.fillText(`Deliveries: ${route.deliveries}   Best combo: x${route.bestCombo + 1}`, x + 28, y + 136);
+  ctx.fillText(`Mistakes: ${route.mistakes}   Difficulty: ${route.difficulty}`, x + 28, y + 164);
+  ctx.fillText(`Time survived: ${formatTime(route.completeTime)}`, x + 28, y + 192);
 
   ctx.fillStyle = "#f0b44b";
-  ctx.fillText(`Stamp: ${flowerPerfect && routePerfect ? "Meadow Perfect" : timeLabel}`, x + 28, y + 224);
+  ctx.fillText(`Stamp: ${stamp}`, x + 28, y + 224);
   ctx.fillStyle = "#fff1cf";
-  ctx.fillText("Press R to replay cleaner", x + 28, y + 244);
+  ctx.fillText("Press R to start another rush", x + 28, y + 244);
 }
 
 function drawFrame(image, cfg, frame, x, y, scale = 1, flip = false, anchor = "center") {

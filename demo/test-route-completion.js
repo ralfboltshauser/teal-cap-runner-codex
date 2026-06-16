@@ -1,6 +1,8 @@
 const { chromium } = require("playwright");
 
-const url = process.env.SPRITE_DEMO_URL || "http://127.0.0.1:8123/demo/";
+const baseUrl = process.env.SPRITE_DEMO_URL || "http://127.0.0.1:8123/demo/";
+const url = new URL(baseUrl);
+url.searchParams.set("duration", "12");
 
 (async () => {
   const browser = await chromium.launch({
@@ -10,7 +12,7 @@ const url = process.env.SPRITE_DEMO_URL || "http://127.0.0.1:8123/demo/";
   });
 
   const page = await browser.newPage({ viewport: { width: 1365, height: 768 } });
-  await page.goto(url, { waitUntil: "networkidle" });
+  await page.goto(url.toString(), { waitUntil: "networkidle" });
   await page.waitForFunction(() => window.__tealCapRunner?.player?.state === "idle");
 
   await page.keyboard.down("ArrowRight");
@@ -66,11 +68,13 @@ const url = process.env.SPRITE_DEMO_URL || "http://127.0.0.1:8123/demo/";
     crawledThroughGate.player.x < crawledThroughGate.route.gateX + 52 ||
     !completed.completed ||
     completed.completeTime <= 0 ||
-    !completed.gateCleared ||
-    !completed.brookClean ||
-    !completed.shortcutHit ||
+    completed.deliveries < 1 ||
+    completed.score <= 0 ||
+    !crawledThroughGate.route.gateCleared ||
     reset.completed ||
     reset.hasParcel ||
+    reset.deliveries !== 0 ||
+    reset.score !== 0 ||
     reset.gateCleared ||
     !reset.brookClean ||
     reset.shortcutHit
