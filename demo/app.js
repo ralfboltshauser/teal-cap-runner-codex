@@ -62,8 +62,14 @@ const route = {
   bestTime: Number(localStorage.getItem("tealCapRunner.bestMorningRibbon") || 0),
   pickupX: 170,
   targetX: 2200,
+  gateX: 760,
+  brookX: 1260,
+  gustX: 1650,
   awakenedFlowers: 0,
   softLanding: true,
+  gateCleared: false,
+  brookClean: true,
+  shortcutHit: false,
   hint: "Pick up the teal ribbon and deliver it to the windmill marker.",
 };
 
@@ -100,6 +106,9 @@ function resizeCanvas() {
   world.routeWidth = Math.max(2200, Math.round(nextWidth * 3.15));
   world.groundY = Math.max(310, nextHeight - 112);
   route.targetX = world.routeWidth - 190;
+  route.gateX = Math.round(world.routeWidth * 0.34);
+  route.brookX = Math.round(world.routeWidth * 0.56);
+  route.gustX = Math.round(world.routeWidth * 0.74);
 
   if (wasGrounded || player.y > world.groundY) {
     player.y = world.groundY;
@@ -285,6 +294,7 @@ function update(dt) {
   player.vy += world.gravity * dt;
   player.x += player.vx * dt;
   player.y += player.vy * dt;
+  applyRouteFeatures(crouch);
 
   if (player.y >= world.groundY) {
     player.y = world.groundY;
@@ -292,7 +302,7 @@ function update(dt) {
     player.grounded = true;
     if (!wasGrounded && impactVy > 380) {
       spawnLanding(player.x, player.y, impactVy);
-      if (route.hasParcel && impactVy > 620) {
+      if (route.hasParcel && impactVy > 760) {
         route.softLanding = false;
       }
     }
@@ -349,6 +359,48 @@ function updateRoute() {
   }
 }
 
+function applyRouteFeatures(crouch) {
+  const gateLeft = route.gateX - 42;
+  const gateRight = route.gateX + 38;
+  if (!route.completed && !route.gateCleared && player.grounded && player.x > gateLeft && player.x < gateRight) {
+    if (crouch) {
+      route.gateCleared = true;
+      route.hint = route.hasParcel ? "Clean duck. Jump the brook ahead." : route.hint;
+    } else if (player.vx > 0) {
+      player.x = gateLeft;
+      player.vx = 0;
+      player.skidTimer = 0.12;
+      route.hint = "Hold Down to duck under the windmill beam.";
+      spawnDust(player.x + 14, player.y - 2, -1);
+    }
+  }
+
+  const brookLeft = route.brookX - 62;
+  const brookRight = route.brookX + 78;
+  if (!route.completed && player.x > brookLeft && player.x < brookRight && player.grounded) {
+    if (Math.abs(player.vx) > 40) {
+      player.vx *= 0.72;
+      route.brookClean = false;
+      route.softLanding = false;
+      route.hint = "Brook splash. Jump earlier for a cleaner route.";
+      if (sceneTime % 0.08 < 0.033) {
+        spawnPollen(player.x, world.groundY - 18);
+      }
+    }
+  }
+
+  const gustLeft = route.gustX - 70;
+  const gustRight = route.gustX + 90;
+  if (!route.completed && player.x > gustLeft && player.x < gustRight && player.dashTimer > 0 && !route.shortcutHit) {
+    route.shortcutHit = true;
+    route.hint = "Dash gust! Ride the fast meadow line.";
+    player.vx = Math.max(player.vx, world.dashSpeed * 1.12);
+    for (let i = 0; i < 10; i += 1) {
+      spawnPollen(route.gustX + (Math.random() - 0.5) * 90, world.groundY - 80 - Math.random() * 50);
+    }
+  }
+}
+
 function updateCamera() {
   const lead = player.facing * Math.min(120, Math.abs(player.vx) * 0.22);
   const target = player.x - world.width * 0.38 + lead;
@@ -380,6 +432,9 @@ function resetRoute() {
   route.completeTime = 0;
   route.awakenedFlowers = 0;
   route.softLanding = true;
+  route.gateCleared = false;
+  route.brookClean = true;
+  route.shortcutHit = false;
   route.hint = "Pick up the teal ribbon and deliver it to the windmill marker.";
   scene.dustPuffs = [];
   scene.stones = [];
@@ -512,6 +567,12 @@ function draw() {
       completeTime: route.completeTime,
       awakenedFlowers: route.awakenedFlowers,
       softLanding: route.softLanding,
+      gateX: route.gateX,
+      brookX: route.brookX,
+      gustX: route.gustX,
+      gateCleared: route.gateCleared,
+      brookClean: route.brookClean,
+      shortcutHit: route.shortcutHit,
     },
     cameraX: world.cameraX,
   };
@@ -536,6 +597,7 @@ function drawWorld() {
   drawBirds();
   drawDistantMeadowShapes();
   drawGround();
+  drawRouteFeatures();
   drawRouteObjects(false);
   drawBackProps();
   drawGroundDecor(false);
@@ -617,6 +679,79 @@ function drawRouteObjects(front) {
   }
 }
 
+function drawRouteFeatures() {
+  drawCrouchGate();
+  drawBrook();
+  drawDashGust();
+}
+
+function drawFeatureLabel(text, x, y, color) {
+  ctx.fillStyle = "rgba(35, 24, 15, 0.76)";
+  ctx.fillRect(Math.round(x - 28), Math.round(y - 15), 56, 18);
+  ctx.fillStyle = color;
+  ctx.font = "11px Courier New";
+  ctx.textAlign = "center";
+  ctx.fillText(text, x, y - 2);
+  ctx.textAlign = "left";
+}
+
+function drawCrouchGate() {
+  const sx = worldToScreen(route.gateX);
+  if (sx < -130 || sx > world.width + 130) return;
+  const y = world.groundY;
+  const color = route.gateCleared ? "#29b6b6" : "#f0b44b";
+
+  ctx.fillStyle = "rgba(36, 24, 16, 0.30)";
+  ctx.beginPath();
+  ctx.ellipse(sx, y + 5, 66, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#6f4528";
+  ctx.fillRect(Math.round(sx - 58), Math.round(y - 74), 11, 76);
+  ctx.fillRect(Math.round(sx + 47), Math.round(y - 74), 11, 76);
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(sx - 60), Math.round(y - 74), 120, 14);
+  ctx.fillStyle = "rgba(255, 241, 207, 0.65)";
+  ctx.fillRect(Math.round(sx - 48), Math.round(y - 69), 96, 3);
+  drawFeatureLabel("DUCK", sx, y - 88, color);
+}
+
+function drawBrook() {
+  const sx = worldToScreen(route.brookX);
+  if (sx < -150 || sx > world.width + 150) return;
+  const y = world.groundY + 5;
+  const color = route.brookClean ? "#64d7e0" : "#f0b44b";
+
+  ctx.fillStyle = "rgba(19, 64, 75, 0.82)";
+  ctx.fillRect(Math.round(sx - 72), Math.round(y - 11), 152, 15);
+  ctx.fillStyle = "rgba(100, 215, 224, 0.72)";
+  for (let i = -58; i <= 58; i += 28) {
+    ctx.fillRect(Math.round(sx + i), Math.round(y - 7 + Math.sin(sceneTime * 4 + i) * 2), 16, 3);
+  }
+  ctx.fillStyle = "rgba(255, 241, 207, 0.34)";
+  ctx.fillRect(Math.round(sx - 86), Math.round(y - 15), 18, 6);
+  ctx.fillRect(Math.round(sx + 74), Math.round(y - 15), 18, 6);
+  drawFeatureLabel("JUMP", sx, world.groundY - 38, color);
+}
+
+function drawDashGust() {
+  const sx = worldToScreen(route.gustX);
+  if (sx < -160 || sx > world.width + 160) return;
+  const y = world.groundY - 74;
+  const color = route.shortcutHit ? "#29b6b6" : "#fff1cf";
+
+  ctx.save();
+  ctx.strokeStyle = route.shortcutHit ? "rgba(41, 182, 182, 0.78)" : "rgba(255, 241, 207, 0.55)";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i += 1) {
+    const phase = sceneTime * 36 + i * 28;
+    ctx.beginPath();
+    ctx.ellipse(sx + Math.sin(sceneTime * 3 + i) * 8, y + i * 12, 42 + (phase % 20), 14, -0.2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  drawFeatureLabel("DASH", sx, y - 32, color);
+}
+
 function drawParcelStand(x, label, color) {
   const sx = worldToScreen(x);
   if (sx < -120 || sx > world.width + 120) return;
@@ -695,6 +830,7 @@ function drawGroundDecor(front) {
 }
 
 function drawForeground() {
+  drawRouteObjects(true);
   drawParticles(true);
   drawGroundDecor(true);
   scene.pollen.forEach((pollen) => {
@@ -799,11 +935,13 @@ function drawHud() {
 
 function drawCompletionCard() {
   const w = Math.min(480, world.width - 32);
-  const h = 238;
+  const h = 258;
   const x = Math.round((world.width - w) / 2);
   const y = Math.round(Math.max(96, world.height * 0.18));
   const flowerPerfect = route.awakenedFlowers >= scene.flowers.length;
+  const routePerfect = route.gateCleared && route.brookClean && route.shortcutHit;
   const timeLabel = route.completeTime < 18 ? "Wind-Kissed" : route.completeTime < 28 ? "Swift" : "Fresh";
+  const routeLabel = `${route.gateCleared ? "duck" : "beam"} / ${route.brookClean ? "clean brook" : "splash"} / ${route.shortcutHit ? "gust" : "no gust"}`;
 
   ctx.fillStyle = "rgba(21, 18, 13, 0.90)";
   ctx.fillRect(x, y, w, h);
@@ -823,11 +961,12 @@ function drawCompletionCard() {
   ctx.fillText(`Time: ${formatTime(route.completeTime)}   Best: ${formatTime(route.bestTime)}`, x + 28, y + 108);
   ctx.fillText(`Flowers awakened: ${route.awakenedFlowers}/${scene.flowers.length}`, x + 28, y + 136);
   ctx.fillText(`Parcel care: ${route.softLanding ? "Soft landing" : "Scuffed but safe"}`, x + 28, y + 164);
+  ctx.fillText(`Route: ${routeLabel}`, x + 28, y + 192);
 
   ctx.fillStyle = "#f0b44b";
-  ctx.fillText(`Stamp: ${flowerPerfect ? "Meadow Perfect" : timeLabel}`, x + 28, y + 196);
+  ctx.fillText(`Stamp: ${flowerPerfect && routePerfect ? "Meadow Perfect" : timeLabel}`, x + 28, y + 224);
   ctx.fillStyle = "#fff1cf";
-  ctx.fillText("Press R to replay cleaner", x + 28, y + 222);
+  ctx.fillText("Press R to replay cleaner", x + 28, y + 244);
 }
 
 function drawFrame(image, cfg, frame, x, y, scale = 1, flip = false, anchor = "center") {

@@ -17,6 +17,26 @@ const url = process.env.SPRITE_DEMO_URL || "http://127.0.0.1:8123/demo/";
   await page.waitForFunction(() => window.__tealCapRunner?.route?.hasParcel, { timeout: 5000 });
 
   await page.keyboard.down("Shift");
+  await page.waitForFunction(
+    () => window.__tealCapRunner.player.x > window.__tealCapRunner.route.gateX - 52,
+    { timeout: 6000 }
+  );
+  await page.keyboard.down("ArrowDown");
+  await page.waitForFunction(() => window.__tealCapRunner.route.gateCleared, { timeout: 2500 });
+  await page.keyboard.up("ArrowDown");
+
+  await page.waitForFunction(
+    () => window.__tealCapRunner.player.x > window.__tealCapRunner.route.brookX - 170,
+    { timeout: 5000 }
+  );
+  await page.keyboard.press("Space");
+
+  await page.waitForFunction(
+    () => window.__tealCapRunner.player.x > window.__tealCapRunner.route.gustX - 150,
+    { timeout: 5000 }
+  );
+  await page.keyboard.press("KeyX");
+
   await page.waitForFunction(() => window.__tealCapRunner?.route?.completed, { timeout: 12000 });
   await page.keyboard.up("Shift");
   await page.keyboard.up("ArrowRight");
@@ -31,7 +51,18 @@ const url = process.env.SPRITE_DEMO_URL || "http://127.0.0.1:8123/demo/";
   console.log(JSON.stringify({ completed, reset, screenshot: "../tmp/route-complete.png" }, null, 2));
   await browser.close();
 
-  if (!completed.completed || completed.completeTime <= 0 || reset.completed || reset.hasParcel) {
+  if (
+    !completed.completed ||
+    completed.completeTime <= 0 ||
+    !completed.gateCleared ||
+    !completed.brookClean ||
+    !completed.shortcutHit ||
+    reset.completed ||
+    reset.hasParcel ||
+    reset.gateCleared ||
+    !reset.brookClean ||
+    reset.shortcutHit
+  ) {
     process.exitCode = 1;
   }
 })();
