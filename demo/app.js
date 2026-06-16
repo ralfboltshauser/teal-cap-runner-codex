@@ -16,6 +16,8 @@ const pressed = new Set();
 const world = {
   width: canvas.width,
   height: canvas.height,
+  routeWidth: 2400,
+  cameraX: 0,
   groundY: 430,
   gravity: 1850,
   accel: 2300,
@@ -30,7 +32,7 @@ const world = {
 };
 
 const player = {
-  x: 180,
+  x: 86,
   y: world.groundY,
   vx: 0,
   vy: 0,
@@ -44,6 +46,25 @@ const player = {
   dashCooldown: 0,
   skidTimer: 0,
   dustTimer: 0,
+  coyoteTimer: 0,
+  jumpBuffer: 0,
+};
+
+const route = {
+  name: "Morning Ribbon",
+  item: "teal ribbon",
+  started: false,
+  hasParcel: false,
+  delivered: false,
+  completed: false,
+  startTime: 0,
+  completeTime: 0,
+  bestTime: Number(localStorage.getItem("tealCapRunner.bestMorningRibbon") || 0),
+  pickupX: 170,
+  targetX: 2200,
+  awakenedFlowers: 0,
+  softLanding: true,
+  hint: "Pick up the teal ribbon and deliver it to the windmill marker.",
 };
 
 let plan;
@@ -76,43 +97,47 @@ function resizeCanvas() {
   canvas.height = nextHeight;
   world.width = nextWidth;
   world.height = nextHeight;
+  world.routeWidth = Math.max(2200, Math.round(nextWidth * 3.15));
   world.groundY = Math.max(310, nextHeight - 112);
+  route.targetX = world.routeWidth - 190;
 
   if (wasGrounded || player.y > world.groundY) {
     player.y = world.groundY;
     player.grounded = true;
     player.vy = 0;
   }
-  player.x = clamp(player.x, 48, world.width - 48);
+  player.x = clamp(player.x, 48, world.routeWidth - 48);
   layoutEnvironment();
+  updateCamera();
   ctx.imageSmoothingEnabled = false;
 }
 
 function layoutEnvironment() {
-  const flowerRatios = [0.14, 0.31, 0.52, 0.72, 0.9];
+  const flowerRatios = [0.14, 0.28, 0.43, 0.58, 0.74, 0.9];
   scene.flowers = flowerRatios.map((ratio, index) => ({
-    x: Math.round(world.width * ratio),
+    x: Math.round(world.routeWidth * ratio),
     timer: scene.flowers[index]?.timer || 0,
     cooldown: scene.flowers[index]?.cooldown || 0,
+    awake: scene.flowers[index]?.awake || false,
     dir: index % 2 === 0 ? 1 : -1,
   }));
 
-  const grassCount = Math.max(8, Math.ceil(world.width / 135));
-  const spacing = world.width / grassCount;
+  const grassCount = Math.max(16, Math.ceil(world.routeWidth / 135));
+  const spacing = world.routeWidth / grassCount;
   scene.grasses = Array.from({ length: grassCount }, (_, index) => ({
     x: 34 + index * spacing,
     seed: index * 0.7,
   }));
 
   scene.props = [
-    { x: Math.round(world.width * 0.09), frame: 0, scale: 1.45, y: world.groundY },
-    { x: Math.round(world.width * 0.64), frame: 1, scale: 1.2, y: world.groundY - 6 },
-    { x: Math.round(world.width * 0.45), frame: 2, scale: 1.05, y: world.groundY },
-    { x: Math.round(world.width * 0.82), frame: 3, scale: 1.05, y: world.groundY },
+    { x: route.pickupX, frame: 0, scale: 1.45, y: world.groundY },
+    { x: route.targetX, frame: 1, scale: 1.34, y: world.groundY - 6 },
+    { x: Math.round(world.routeWidth * 0.38), frame: 2, scale: 1.05, y: world.groundY },
+    { x: Math.round(world.routeWidth * 0.72), frame: 3, scale: 1.05, y: world.groundY },
   ];
 
   scene.birds.forEach((bird, index) => {
-    bird.x = clamp(bird.x, 80, world.width + 100);
+    bird.x = clamp(bird.x, 80, world.routeWidth + 100);
     bird.y = index === 0 ? Math.max(72, world.height * 0.18) : Math.max(54, world.height * 0.13);
   });
 }
@@ -123,6 +148,9 @@ window.addEventListener("keydown", (event) => {
   const code = event.code;
   if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Space"].includes(code)) {
     event.preventDefault();
+  }
+  if (code === "KeyR") {
+    resetRoute();
   }
   if (!keys.has(code)) pressed.add(code);
   keys.add(code);
@@ -199,13 +227,23 @@ function update(dt) {
   const inputX = Number(right) - Number(left);
   const wasGrounded = player.grounded;
   const impactVy = player.vy;
+  const jumpPressed = hit("Space", "ArrowUp", "KeyW");
+
+  if (!route.completed && !route.started && (Math.abs(player.vx) > 5 || inputX !== 0 || jumpPressed)) {
+    route.started = true;
+    route.startTime = sceneTime;
+  }
 
   if (inputX !== 0) player.facing = inputX;
   if (player.dashCooldown > 0) player.dashCooldown -= dt;
   if (player.skidTimer > 0) player.skidTimer -= dt;
   if (player.dustTimer > 0) player.dustTimer -= dt;
+  if (player.jumpBuffer > 0) player.jumpBuffer -= dt;
+  if (jumpPressed) player.jumpBuffer = 0.13;
+  if (player.grounded) player.coyoteTimer = 0.11;
+  else player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
 
-  if (hit("KeyX", "KeyJ") && player.dashCooldown <= 0) {
+  if (!route.completed && hit("KeyX", "KeyJ") && player.dashCooldown <= 0) {
     player.dashTimer = world.dashTime;
     player.dashCooldown = world.dashCooldown;
     player.vx = player.facing * world.dashSpeed;
@@ -223,7 +261,7 @@ function update(dt) {
     const maxSpeed = sprint ? world.maxSprint : world.maxRun;
     const accel = player.grounded ? world.accel : world.airAccel;
 
-    if (inputX && !(crouch && player.grounded)) {
+    if (!route.completed && inputX && !(crouch && player.grounded)) {
       const wasOpposing = player.grounded && Math.abs(player.vx) > 180 && Math.sign(player.vx) !== inputX;
       player.vx += inputX * accel * dt;
       player.vx = clamp(player.vx, -maxSpeed, maxSpeed);
@@ -235,9 +273,11 @@ function update(dt) {
       player.vx = approach(player.vx, 0, world.friction * dt);
     }
 
-    if (hit("Space", "ArrowUp", "KeyW") && player.grounded && !crouch) {
+    if (!route.completed && player.jumpBuffer > 0 && player.coyoteTimer > 0 && !crouch) {
       player.vy = -world.jump;
       player.grounded = false;
+      player.coyoteTimer = 0;
+      player.jumpBuffer = 0;
       triggerNearbyFlowers();
     }
   }
@@ -252,6 +292,9 @@ function update(dt) {
     player.grounded = true;
     if (!wasGrounded && impactVy > 380) {
       spawnLanding(player.x, player.y, impactVy);
+      if (route.hasParcel && impactVy > 620) {
+        route.softLanding = false;
+      }
     }
   } else {
     player.grounded = false;
@@ -261,14 +304,92 @@ function update(dt) {
     player.x = 48;
     player.vx = 0;
   }
-  if (player.x > world.width - 48) {
-    player.x = world.width - 48;
+  if (player.x > world.routeWidth - 48) {
+    player.x = world.routeWidth - 48;
     player.vx = 0;
   }
 
+  updateRoute();
+  updateCamera();
   updateEnvironment(dt);
   setState(manualPreviewState || chooseState());
   advanceAnimation(dt);
+}
+
+function updateRoute() {
+  if (!route.hasParcel && !route.delivered && Math.abs(player.x - route.pickupX) < 64 && Math.abs(player.y - world.groundY) < 90) {
+    route.hasParcel = true;
+    route.started = true;
+    route.startTime = route.startTime || sceneTime;
+    route.hint = "Deliver the ribbon to the windmill marker.";
+    spawnPollen(route.pickupX, world.groundY - 70);
+    triggerNearbyFlowers();
+  }
+
+  if (route.hasParcel && !route.delivered && Math.abs(player.x - route.targetX) < 82 && Math.abs(player.y - world.groundY) < 110) {
+    route.delivered = true;
+    route.completed = true;
+    route.completeTime = Math.max(0.01, sceneTime - route.startTime);
+    route.hasParcel = false;
+    route.hint = "Delivered. Press R to run it cleaner.";
+    player.vx = 0;
+    player.vy = 0;
+    player.dashTimer = 0;
+    player.skidTimer = 0;
+    route.bestTime = route.bestTime ? Math.min(route.bestTime, route.completeTime) : route.completeTime;
+    localStorage.setItem("tealCapRunner.bestMorningRibbon", String(route.bestTime));
+    scene.flowers.forEach((flower) => {
+      flower.awake = true;
+      flower.timer = 0.5;
+    });
+    for (let i = 0; i < 9; i += 1) {
+      spawnPollen(route.targetX + (Math.random() - 0.5) * 64, world.groundY - 72 - Math.random() * 40);
+    }
+    spawnDust(player.x, player.y, -player.facing);
+  }
+}
+
+function updateCamera() {
+  const lead = player.facing * Math.min(120, Math.abs(player.vx) * 0.22);
+  const target = player.x - world.width * 0.38 + lead;
+  world.cameraX = clamp(target, 0, Math.max(0, world.routeWidth - world.width));
+}
+
+function worldToScreen(x) {
+  return x - world.cameraX;
+}
+
+function resetRoute() {
+  player.x = 86;
+  player.y = world.groundY;
+  player.vx = 0;
+  player.vy = 0;
+  player.facing = 1;
+  player.grounded = true;
+  player.dashTimer = 0;
+  player.dashCooldown = 0;
+  player.skidTimer = 0;
+  player.dustTimer = 0;
+  player.coyoteTimer = 0;
+  player.jumpBuffer = 0;
+  route.started = false;
+  route.hasParcel = false;
+  route.delivered = false;
+  route.completed = false;
+  route.startTime = 0;
+  route.completeTime = 0;
+  route.awakenedFlowers = 0;
+  route.softLanding = true;
+  route.hint = "Pick up the teal ribbon and deliver it to the windmill marker.";
+  scene.dustPuffs = [];
+  scene.stones = [];
+  scene.pollen = [];
+  scene.flowers.forEach((flower) => {
+    flower.awake = false;
+    flower.timer = 0;
+    flower.cooldown = 0;
+  });
+  updateCamera();
 }
 
 function updateEnvironment(dt) {
@@ -281,6 +402,10 @@ function updateEnvironment(dt) {
       flower.timer = 0.5;
       flower.cooldown = 0.85;
       flower.dir = player.x < flower.x ? 1 : -1;
+      if (!flower.awake) {
+        flower.awake = true;
+        route.awakenedFlowers += 1;
+      }
       spawnPollen(flower.x, world.groundY - 46);
     }
   });
@@ -288,7 +413,7 @@ function updateEnvironment(dt) {
   scene.birds.forEach((bird) => {
     bird.x -= bird.speed * dt;
     if (bird.x < -110) {
-      bird.x = world.width + 120 + Math.random() * 160;
+      bird.x = world.cameraX + world.width + 120 + Math.random() * 160;
       bird.y = 78 + Math.random() * 84;
       bird.speed = 16 + Math.random() * 18;
       bird.phase = Math.random() * Math.PI * 2;
@@ -319,6 +444,7 @@ function updateEnvironment(dt) {
 }
 
 function chooseState() {
+  if (route.completed) return "idle";
   const speed = Math.abs(player.vx);
   if (player.dashTimer > 0) return "dash";
   if (player.grounded && down("ArrowDown", "KeyS")) return "crouch";
@@ -370,6 +496,25 @@ function draw() {
   drawPlayer();
   drawForeground();
   drawHud();
+  if (route.completed) drawCompletionCard();
+  window.__tealCapRunner = {
+    player: {
+      x: player.x,
+      y: player.y,
+      state: player.state,
+      grounded: player.grounded,
+    },
+    route: {
+      started: route.started,
+      hasParcel: route.hasParcel,
+      delivered: route.delivered,
+      completed: route.completed,
+      completeTime: route.completeTime,
+      awakenedFlowers: route.awakenedFlowers,
+      softLanding: route.softLanding,
+    },
+    cameraX: world.cameraX,
+  };
 }
 
 function drawWorld() {
@@ -386,10 +531,12 @@ function drawWorld() {
   ctx.fillRect(0, 0, w, h);
 
   drawSunHaze();
-  drawFrame(envSheets.hills, environment.sprites.hills, 0, 0, 198, 1, false);
+  drawFrame(envSheets.hills, environment.sprites.hills, 0, -world.cameraX * 0.18, 198, 1, false, "top-left");
+  drawFrame(envSheets.hills, environment.sprites.hills, 0, 960 - world.cameraX * 0.18, 198, 1, false, "top-left");
   drawBirds();
   drawDistantMeadowShapes();
   drawGround();
+  drawRouteObjects(false);
   drawBackProps();
   drawGroundDecor(false);
   drawParticles(false);
@@ -406,16 +553,19 @@ function drawSunHaze() {
 
 function drawDistantMeadowShapes() {
   ctx.fillStyle = "rgba(37, 78, 67, 0.46)";
-  for (let x = -50; x < world.width + 90; x += 124) {
-    ctx.fillRect(x, 314 + ((x / 124) % 2) * 12, 74, 116);
+  const startA = Math.floor(world.cameraX * 0.4 / 124) * 124 - 124;
+  for (let x = startA; x < world.cameraX * 0.4 + world.width + 160; x += 124) {
+    ctx.fillRect(x - world.cameraX * 0.4, 314 + ((x / 124) % 2) * 12, 74, 116);
   }
   ctx.fillStyle = "rgba(22, 59, 54, 0.34)";
-  for (let x = 30; x < world.width + 120; x += 168) {
-    ctx.fillRect(x, 348, 34, 82);
+  const startB = Math.floor(world.cameraX * 0.55 / 168) * 168 - 168;
+  for (let x = startB; x < world.cameraX * 0.55 + world.width + 220; x += 168) {
+    const sx = x - world.cameraX * 0.55;
+    ctx.fillRect(sx, 348, 34, 82);
     ctx.beginPath();
-    ctx.moveTo(x - 24, 350);
-    ctx.lineTo(x + 17, 304);
-    ctx.lineTo(x + 58, 350);
+    ctx.moveTo(sx - 24, 350);
+    ctx.lineTo(sx + 17, 304);
+    ctx.lineTo(sx + 58, 350);
     ctx.closePath();
     ctx.fill();
   }
@@ -426,7 +576,7 @@ function drawBirds() {
   scene.birds.forEach((bird) => {
     const frame = Math.floor((sceneTime * cfg.fps + bird.phase) % cfg.frames);
     const bob = Math.sin(sceneTime * 1.7 + bird.phase) * 10;
-    drawFrame(envSheets.birdFlock, cfg, frame, bird.x, bird.y + bob, bird.scale, false);
+    drawFrame(envSheets.birdFlock, cfg, frame, bird.x - world.cameraX * 0.25, bird.y + bob, bird.scale, false);
   });
 }
 
@@ -436,9 +586,10 @@ function drawGround() {
   const tileScale = 1.45;
   const tw = cfg.cellWidth * tileScale;
   const th = cfg.cellHeight * tileScale;
-  for (let x = -8; x < world.width + tw; x += tw) {
+  const start = Math.floor(world.cameraX / tw) * tw - tw;
+  for (let x = start; x < world.cameraX + world.width + tw; x += tw) {
     const frame = Math.abs(Math.floor(x / tw)) % cfg.frames;
-    drawFrame(image, cfg, frame, x, world.groundY - 18, tileScale, false, "top-left");
+    drawFrame(image, cfg, frame, worldToScreen(x), world.groundY - 18, tileScale, false, "top-left");
   }
   ctx.fillStyle = "#3b2216";
   ctx.fillRect(0, world.groundY + th - 18, world.width, world.height - (world.groundY + th - 18));
@@ -448,9 +599,58 @@ function drawBackProps() {
   const cfg = environment.sprites.meadowProps;
   scene.props.forEach((prop) => {
     if (prop.frame === 0 || prop.frame === 1) {
-      drawFrame(envSheets.meadowProps, cfg, prop.frame, prop.x, prop.y, prop.scale, false, "bottom");
+      drawFrame(envSheets.meadowProps, cfg, prop.frame, worldToScreen(prop.x), prop.y, prop.scale, false, "bottom");
     }
   });
+}
+
+function drawRouteObjects(front) {
+  const pickupVisible = !route.hasParcel && !route.delivered;
+  if (!front && pickupVisible) {
+    drawParcelStand(route.pickupX, "PICK UP", "#29b6b6");
+  }
+  if (!front) {
+    drawParcelStand(route.targetX, route.delivered ? "DELIVERED" : "RIBBON", route.delivered ? "#f0b44b" : "#f4df9e");
+  }
+  if (front && route.hasParcel) {
+    drawCarriedParcel();
+  }
+}
+
+function drawParcelStand(x, label, color) {
+  const sx = worldToScreen(x);
+  if (sx < -120 || sx > world.width + 120) return;
+  ctx.fillStyle = "rgba(36, 24, 16, 0.34)";
+  ctx.beginPath();
+  ctx.ellipse(sx, world.groundY + 4, 34, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#8f552e";
+  ctx.fillRect(Math.round(sx - 28), Math.round(world.groundY - 54), 56, 10);
+  ctx.fillRect(Math.round(sx - 6), Math.round(world.groundY - 54), 12, 52);
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(sx - 18), Math.round(world.groundY - 82), 36, 24);
+  ctx.fillStyle = "#2b1b12";
+  ctx.fillRect(Math.round(sx - 14), Math.round(world.groundY - 73), 28, 5);
+  ctx.fillStyle = "#fff1cf";
+  ctx.font = "10px Courier New";
+  ctx.textAlign = "center";
+  ctx.fillText(label, sx, world.groundY - 91);
+  ctx.textAlign = "left";
+}
+
+function drawCarriedParcel() {
+  const sx = worldToScreen(player.x);
+  const y = player.y - 98 + Math.sin(sceneTime * 10) * 2;
+  ctx.save();
+  ctx.translate(Math.round(sx - player.facing * 24), Math.round(y));
+  ctx.rotate(player.facing * -0.08);
+  ctx.fillStyle = "#29b6b6";
+  ctx.fillRect(-13, -11, 26, 20);
+  ctx.fillStyle = "#fff1cf";
+  ctx.fillRect(-10, -2, 20, 4);
+  ctx.fillStyle = "#17454a";
+  ctx.fillRect(-2, -11, 4, 20);
+  ctx.restore();
 }
 
 function drawGroundDecor(front) {
@@ -463,8 +663,9 @@ function drawGroundDecor(front) {
     const force = distance < 58 ? Math.sign(grass.x - player.x) * 0.18 : 0;
     const frame = Math.floor((sceneTime * grassCfg.fps + grass.seed + force) % grassCfg.frames);
     const scale = 1.25 + (front ? 0.1 : 0);
-    if ((front && grass.x > player.x) || (!front && grass.x <= player.x)) {
-      drawFrame(envSheets.grassSway, grassCfg, frame, grass.x, world.groundY + 2, scale, false, "bottom");
+    const sx = worldToScreen(grass.x);
+    if (sx > -70 && sx < world.width + 70 && ((front && grass.x > player.x) || (!front && grass.x <= player.x))) {
+      drawFrame(envSheets.grassSway, grassCfg, frame, sx, world.groundY + 2, scale, false, "bottom");
     }
   });
 
@@ -472,18 +673,23 @@ function drawGroundDecor(front) {
     const activeFrame = flower.timer > 0
       ? clamp(Math.floor((0.5 - flower.timer) * flowerCfg.fps), 0, flowerCfg.frames - 1)
       : 0;
-    if ((front && flower.x > player.x) || (!front && flower.x <= player.x)) {
+    const sx = worldToScreen(flower.x);
+    if (sx > -80 && sx < world.width + 80 && ((front && flower.x > player.x) || (!front && flower.x <= player.x))) {
       ctx.save();
-      ctx.translate(flower.x, world.groundY + 1);
+      ctx.translate(sx, world.groundY + 1);
       ctx.scale(flower.dir, 1);
+      if (flower.awake) {
+        ctx.globalAlpha = 1;
+      }
       drawFrame(envSheets.flowerBounce, flowerCfg, activeFrame, 0, 0, 1.25, false, "bottom");
       ctx.restore();
     }
   });
 
   scene.props.forEach((prop) => {
-    if (prop.frame >= 2 && ((front && prop.x > player.x) || (!front && prop.x <= player.x))) {
-      drawFrame(envSheets.meadowProps, propCfg, prop.frame, prop.x, prop.y, prop.scale, false, "bottom");
+    const sx = worldToScreen(prop.x);
+    if (sx > -100 && sx < world.width + 100 && prop.frame >= 2 && ((front && prop.x > player.x) || (!front && prop.x <= player.x))) {
+      drawFrame(envSheets.meadowProps, propCfg, prop.frame, sx, prop.y, prop.scale, false, "bottom");
     }
   });
 }
@@ -494,7 +700,7 @@ function drawForeground() {
   scene.pollen.forEach((pollen) => {
     const alpha = clamp(1 - pollen.t / pollen.life, 0, 1);
     ctx.fillStyle = `rgba(238, 197, 85, ${alpha})`;
-    ctx.fillRect(Math.round(pollen.x), Math.round(pollen.y), 2, 2);
+    ctx.fillRect(Math.round(worldToScreen(pollen.x)), Math.round(pollen.y), 2, 2);
   });
 }
 
@@ -503,14 +709,14 @@ function drawParticles(front) {
     scene.dustPuffs.forEach((dust) => {
       const cfg = environment.sprites.dustPuff;
       const frame = clamp(Math.floor((dust.t / dust.life) * cfg.frames), 0, cfg.frames - 1);
-      drawFrame(envSheets.dustPuff, cfg, frame, dust.x, dust.y, dust.scale, dust.facing < 0, "bottom");
+      drawFrame(envSheets.dustPuff, cfg, frame, worldToScreen(dust.x), dust.y, dust.scale, dust.facing < 0, "bottom");
     });
     return;
   }
 
   scene.stones.forEach((stone) => {
     const cfg = environment.sprites.stoneParticles;
-    drawFrame(envSheets.stoneParticles, cfg, stone.frame, stone.x, stone.y, stone.scale, false, "center");
+    drawFrame(envSheets.stoneParticles, cfg, stone.frame, worldToScreen(stone.x), stone.y, stone.scale, false, "center");
   });
 }
 
@@ -526,11 +732,12 @@ function drawPlayer() {
 
   ctx.fillStyle = "rgba(47, 30, 20, 0.30)";
   ctx.beginPath();
-  ctx.ellipse(player.x, world.groundY + 4, shadowW, 9, 0, 0, Math.PI * 2);
+  const screenX = worldToScreen(player.x);
+  ctx.ellipse(screenX, world.groundY + 4, shadowW, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.save();
-  ctx.translate(Math.round(player.x), Math.round(player.y));
+  ctx.translate(Math.round(screenX), Math.round(player.y));
   ctx.scale(player.facing, 1);
   ctx.drawImage(
     image,
@@ -550,17 +757,77 @@ function drawHud() {
   ui.state.textContent = player.state;
   ui.frame.textContent = String(player.frame + 1);
   ui.velocity.textContent = `${Math.round(player.vx)}, ${Math.round(player.vy)}`;
-  ui.ground.textContent = player.grounded ? "yes" : "no";
+  ui.ground.textContent = route.hasParcel ? "parcel" : player.grounded ? "yes" : "no";
 
   [...ui.strip.children].forEach((button) => {
     button.classList.toggle("active", button.textContent === player.state);
   });
 
-  ctx.fillStyle = "rgba(35, 24, 15, 0.70)";
-  ctx.fillRect(16, 16, 306, 34);
+  const elapsed = route.started
+    ? route.completed
+      ? route.completeTime
+      : sceneTime - route.startTime
+    : 0;
+  const progress = clamp(player.x / route.targetX, 0, 1);
+  const compact = world.width < 620;
+  const hudX = compact ? 10 : 16;
+  const hudY = compact ? Math.min(world.height - 214, 270) : 16;
+  const hudW = compact ? Math.min(370, world.width - 20) : 438;
+  const barW = compact ? hudW - 116 : 320;
+  const hint = compact
+    ? route.hasParcel
+      ? "Deliver ribbon to windmill."
+      : route.completed
+        ? "Delivered. Press R."
+        : "Pick up ribbon."
+    : route.hint;
+  ctx.fillStyle = "rgba(35, 24, 15, 0.76)";
+  ctx.fillRect(hudX, hudY, hudW, 72);
   ctx.fillStyle = "#fff1cf";
   ctx.font = "16px Courier New";
-  ctx.fillText(`${environment.theme.toUpperCase()}  ${player.state.toUpperCase()}  F${player.frame + 1}`, 28, 38);
+  ctx.fillText(`${route.name.toUpperCase()}  ${player.state.toUpperCase()}  ${formatTime(elapsed)}`, hudX + 12, hudY + 22);
+  ctx.font = "13px Courier New";
+  ctx.fillStyle = "#f0dca6";
+  ctx.fillText(hint, hudX + 12, hudY + 46);
+  ctx.fillStyle = "rgba(255, 241, 207, 0.22)";
+  ctx.fillRect(hudX + 12, hudY + 58, barW, 6);
+  ctx.fillStyle = route.hasParcel || route.delivered ? "#29b6b6" : "#f0b44b";
+  ctx.fillRect(hudX + 12, hudY + 58, Math.round(barW * progress), 6);
+  ctx.fillStyle = "#fff1cf";
+  ctx.fillText(`flowers ${route.awakenedFlowers}/${scene.flowers.length}`, hudX + barW + 24, hudY + 64);
+}
+
+function drawCompletionCard() {
+  const w = Math.min(480, world.width - 32);
+  const h = 238;
+  const x = Math.round((world.width - w) / 2);
+  const y = Math.round(Math.max(96, world.height * 0.18));
+  const flowerPerfect = route.awakenedFlowers >= scene.flowers.length;
+  const timeLabel = route.completeTime < 18 ? "Wind-Kissed" : route.completeTime < 28 ? "Swift" : "Fresh";
+
+  ctx.fillStyle = "rgba(21, 18, 13, 0.90)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = "rgba(255, 241, 207, 0.28)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+  ctx.fillStyle = "#29b6b6";
+  ctx.font = "14px Courier New";
+  ctx.fillText("DELIVERY COMPLETE", x + 26, y + 34);
+  ctx.fillStyle = "#fff1cf";
+  ctx.font = "30px Trebuchet MS";
+  ctx.fillText("Morning Ribbon", x + 26, y + 70);
+
+  ctx.font = "16px Courier New";
+  ctx.fillStyle = "#f0dca6";
+  ctx.fillText(`Time: ${formatTime(route.completeTime)}   Best: ${formatTime(route.bestTime)}`, x + 28, y + 108);
+  ctx.fillText(`Flowers awakened: ${route.awakenedFlowers}/${scene.flowers.length}`, x + 28, y + 136);
+  ctx.fillText(`Parcel care: ${route.softLanding ? "Soft landing" : "Scuffed but safe"}`, x + 28, y + 164);
+
+  ctx.fillStyle = "#f0b44b";
+  ctx.fillText(`Stamp: ${flowerPerfect ? "Meadow Perfect" : timeLabel}`, x + 28, y + 196);
+  ctx.fillStyle = "#fff1cf";
+  ctx.fillText("Press R to replay cleaner", x + 28, y + 222);
 }
 
 function drawFrame(image, cfg, frame, x, y, scale = 1, flip = false, anchor = "center") {
@@ -626,6 +893,10 @@ function triggerNearbyFlowers() {
       flower.timer = 0.5;
       flower.cooldown = 0.85;
       flower.dir = player.x < flower.x ? 1 : -1;
+      if (!flower.awake) {
+        flower.awake = true;
+        route.awakenedFlowers += 1;
+      }
       spawnPollen(flower.x, world.groundY - 46);
     }
   });
@@ -652,6 +923,11 @@ function approach(value, target, amount) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function formatTime(seconds) {
+  if (!seconds) return "--.--";
+  return seconds.toFixed(2);
 }
 
 boot().catch((error) => {
