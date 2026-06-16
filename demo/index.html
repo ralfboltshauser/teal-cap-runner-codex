@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Teal Cap Runner Sprite Demo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="stage">
+        <canvas id="game" width="960" height="540" aria-label="Playable sprite animation demo"></canvas>
+        <div class="scanline" aria-hidden="true"></div>
+
+        <aside class="panel" aria-label="Game status and controls">
+          <div>
+            <p class="eyebrow">Sprite Lab</p>
+            <h1>Teal Cap Runner</h1>
+          </div>
+
+          <dl class="telemetry">
+            <div><dt>State</dt><dd id="state">loading</dd></div>
+            <div><dt>Frame</dt><dd id="frame">0</dd></div>
+            <div><dt>Velocity</dt><dd id="velocity">0, 0</dd></div>
+            <div><dt>Ground</dt><dd id="ground">no</dd></div>
+          </dl>
+
+          <div class="keys" aria-label="Controls">
+            <span>←</span><span>→</span><span>A</span><span>D</span>
+            <span>Shift</span><span>Space</span><span>↓</span><span>X</span>
+          </div>
+
+          <div id="strip" class="strip"></div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,85 @@
+{
+  "theme": "Windmill Courier Meadow",
+  "sprites": {
+    "groundTiles": {
+      "file": "environment/ground-tiles.png",
+      "frames": 4,
+      "fps": 1,
+      "loop": true,
+      "cellWidth": 64,
+      "cellHeight": 64,
+      "imageWidth": 256,
+      "imageHeight": 64
+    },
+    "flowerBounce": {
+      "file": "environment/flower-bounce.png",
+      "frames": 6,
+      "fps": 12,
+      "loop": true,
+      "cellWidth": 56,
+      "cellHeight": 56,
+      "imageWidth": 336,
+      "imageHeight": 56
+    },
+    "grassSway": {
+      "file": "environment/grass-sway.png",
+      "frames": 6,
+      "fps": 8,
+      "loop": true,
+      "cellWidth": 48,
+      "cellHeight": 40,
+      "imageWidth": 288,
+      "imageHeight": 40
+    },
+    "birdFlock": {
+      "file": "environment/bird-flock.png",
+      "frames": 6,
+      "fps": 10,
+      "loop": true,
+      "cellWidth": 72,
+      "cellHeight": 32,
+      "imageWidth": 432,
+      "imageHeight": 32
+    },
+    "stoneParticles": {
+      "file": "environment/stone-particles.png",
+      "frames": 8,
+      "fps": 1,
+      "loop": false,
+      "cellWidth": 16,
+      "cellHeight": 16,
+      "imageWidth": 128,
+      "imageHeight": 16
+    },
+    "dustPuff": {
+      "file": "environment/dust-puff.png",
+      "frames": 6,
+      "fps": 16,
+      "loop": false,
+      "cellWidth": 64,
+      "cellHeight": 32,
+      "imageWidth": 384,
+      "imageHeight": 32
+    },
+    "meadowProps": {
+      "file": "environment/meadow-props.png",
+      "frames": 4,
+      "fps": 1,
+      "loop": true,
+      "cellWidth": 80,
+      "cellHeight": 80,
+      "imageWidth": 320,
+      "imageHeight": 80
+    },
+    "hills": {
+      "file": "environment/hills.png",
+      "frames": 1,
+      "fps": 1,
+      "loop": false,
+      "cellWidth": 960,
+      "cellHeight": 220,
+      "imageWidth": 960,
+      "imageHeight": 220
+    }
+  }
+}

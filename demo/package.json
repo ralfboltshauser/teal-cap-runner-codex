@@ -1,0 +1,18 @@
+{
+  "name": "teal-cap-runner-demo",
+  "version": "1.0.0",
+  "description": "Playable canvas demo for the generated Teal Cap Runner sprite animation set.",
+  "main": "app.js",
+  "scripts": {
+    "serve": "python3 -m http.server 8123 --bind 0.0.0.0 --directory ..",
+    "test:interaction": "node ./test-interaction.js",
+    "test:environment-visual": "node ./test-environment-visual.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "playwright": "^1.61.0"
+  }
+}

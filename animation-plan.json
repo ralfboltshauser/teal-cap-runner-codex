@@ -1,0 +1,539 @@
+{
+  "character": {
+    "name": "Teal Cap Runner",
+    "baseSprite": "running-little-man-transparent.png",
+    "facingSource": "right",
+    "renderLeftByFlip": true,
+    "styleLocks": [
+      "teal cap",
+      "brown hair",
+      "large blue eyes",
+      "cream shirt",
+      "navy vest",
+      "tan pants",
+      "brown boots",
+      "brown gloves",
+      "cheerful side-view platformer proportions"
+    ]
+  },
+  "spriteSheetFormat": {
+    "type": "horizontal-strip",
+    "rows": 1,
+    "backgroundKey": "#ff00ff",
+    "alphaProcessed": true,
+    "sampling": "nearest-neighbor",
+    "pivot": {
+      "x": 0.5,
+      "y": 0.88
+    },
+    "notes": "One sheet per state. Equal-width frame cells. The web demo derives frame width from image width / frameCount."
+  },
+  "states": {
+    "idle": {
+      "frames": 4,
+      "fps": 5,
+      "loop": true,
+      "priority": 70,
+      "file": "sheets/idle.png",
+      "description": "Subtle breathing and blink, feet planted.",
+      "imageWidth": 1328,
+      "imageHeight": 665,
+      "cellWidth": 332,
+      "cellHeight": 665,
+      "frameRects": [
+        {
+          "x": 27,
+          "y": 26,
+          "w": 278,
+          "h": 613,
+          "originX": 139.0,
+          "originY": 613,
+          "durationMs": 200
+        },
+        {
+          "x": 358,
+          "y": 26,
+          "w": 280,
+          "h": 613,
+          "originX": 140.0,
+          "originY": 613,
+          "durationMs": 200
+        },
+        {
+          "x": 690,
+          "y": 26,
+          "w": 280,
+          "h": 613,
+          "originX": 140.0,
+          "originY": 613,
+          "durationMs": 200
+        },
+        {
+          "x": 1022,
+          "y": 26,
+          "w": 280,
+          "h": 613,
+          "originX": 140.0,
+          "originY": 613,
+          "durationMs": 200
+        }
+      ]
+    },
+    "walk": {
+      "frames": 6,
+      "fps": 9,
+      "loop": true,
+      "priority": 60,
+      "file": "sheets/walk.png",
+      "description": "Grounded walk cycle, one foot always planted.",
+      "imageWidth": 1758,
+      "imageHeight": 520,
+      "cellWidth": 293,
+      "cellHeight": 520,
+      "frameRects": [
+        {
+          "x": 26,
+          "y": 26,
+          "w": 241,
+          "h": 468,
+          "originX": 120.5,
+          "originY": 468,
+          "durationMs": 111
+        },
+        {
+          "x": 322,
+          "y": 29,
+          "w": 234,
+          "h": 465,
+          "originX": 117.0,
+          "originY": 465,
+          "durationMs": 111
+        },
+        {
+          "x": 630,
+          "y": 26,
+          "w": 204,
+          "h": 468,
+          "originX": 102.0,
+          "originY": 468,
+          "durationMs": 111
+        },
+        {
+          "x": 905,
+          "y": 30,
+          "w": 241,
+          "h": 464,
+          "originX": 120.5,
+          "originY": 464,
+          "durationMs": 111
+        },
+        {
+          "x": 1207,
+          "y": 30,
+          "w": 222,
+          "h": 464,
+          "originX": 111.0,
+          "originY": 464,
+          "durationMs": 111
+        },
+        {
+          "x": 1494,
+          "y": 29,
+          "w": 236,
+          "h": 465,
+          "originX": 118.0,
+          "originY": 465,
+          "durationMs": 111
+        }
+      ]
+    },
+    "run": {
+      "frames": 8,
+      "fps": 12,
+      "loop": true,
+      "priority": 50,
+      "file": "sheets/run.png",
+      "description": "Energetic run cycle with strong arm swing.",
+      "imageWidth": 2232,
+      "imageHeight": 362,
+      "cellWidth": 279,
+      "cellHeight": 362,
+      "frameRects": [
+        {
+          "x": 30,
+          "y": 26,
+          "w": 218,
+          "h": 310,
+          "originX": 109.0,
+          "originY": 310,
+          "durationMs": 83
+        },
+        {
+          "x": 330,
+          "y": 50,
+          "w": 177,
+          "h": 286,
+          "originX": 88.5,
+          "originY": 286,
+          "durationMs": 83
+        },
+        {
+          "x": 589,
+          "y": 40,
+          "w": 216,
+          "h": 296,
+          "originX": 108.0,
+          "originY": 296,
+          "durationMs": 83
+        },
+        {
+          "x": 865,
+          "y": 36,
+          "w": 223,
+          "h": 300,
+          "originX": 111.5,
+          "originY": 300,
+          "durationMs": 83
+        },
+        {
+          "x": 1142,
+          "y": 72,
+          "w": 227,
+          "h": 264,
+          "originX": 113.5,
+          "originY": 264,
+          "durationMs": 83
+        },
+        {
+          "x": 1438,
+          "y": 33,
+          "w": 192,
+          "h": 304,
+          "originX": 96.0,
+          "originY": 304,
+          "durationMs": 83
+        },
+        {
+          "x": 1725,
+          "y": 50,
+          "w": 176,
+          "h": 286,
+          "originX": 88.0,
+          "originY": 286,
+          "durationMs": 83
+        },
+        {
+          "x": 1980,
+          "y": 39,
+          "w": 224,
+          "h": 297,
+          "originX": 112.0,
+          "originY": 297,
+          "durationMs": 83
+        }
+      ]
+    },
+    "sprint": {
+      "frames": 6,
+      "fps": 14,
+      "loop": true,
+      "priority": 40,
+      "file": "sheets/sprint.png",
+      "description": "Lower forward lean, longer stride than run.",
+      "imageWidth": 2142,
+      "imageHeight": 359,
+      "cellWidth": 357,
+      "cellHeight": 359,
+      "frameRects": [
+        {
+          "x": 26,
+          "y": 26,
+          "w": 305,
+          "h": 307,
+          "originX": 152.5,
+          "originY": 307,
+          "durationMs": 71
+        },
+        {
+          "x": 420,
+          "y": 50,
+          "w": 231,
+          "h": 283,
+          "originX": 115.5,
+          "originY": 283,
+          "durationMs": 71
+        },
+        {
+          "x": 743,
+          "y": 35,
+          "w": 298,
+          "h": 298,
+          "originX": 149.0,
+          "originY": 298,
+          "durationMs": 71
+        },
+        {
+          "x": 1100,
+          "y": 70,
+          "w": 298,
+          "h": 263,
+          "originX": 149.0,
+          "originY": 263,
+          "durationMs": 71
+        },
+        {
+          "x": 1477,
+          "y": 26,
+          "w": 259,
+          "h": 307,
+          "originX": 129.5,
+          "originY": 307,
+          "durationMs": 71
+        },
+        {
+          "x": 1822,
+          "y": 36,
+          "w": 281,
+          "h": 297,
+          "originX": 140.5,
+          "originY": 297,
+          "durationMs": 71
+        }
+      ]
+    },
+    "jump": {
+      "frames": 5,
+      "fps": 10,
+      "loop": false,
+      "priority": 30,
+      "file": "sheets/jump.png",
+      "description": "Anticipation, takeoff, rise, apex, fall/landing poses.",
+      "imageWidth": 1970,
+      "imageHeight": 473,
+      "cellWidth": 394,
+      "cellHeight": 473,
+      "frameRects": [
+        {
+          "x": 64,
+          "y": 119,
+          "w": 265,
+          "h": 328,
+          "originX": 132.5,
+          "originY": 328,
+          "durationMs": 100
+        },
+        {
+          "x": 417,
+          "y": 30,
+          "w": 341,
+          "h": 417,
+          "originX": 170.5,
+          "originY": 417,
+          "durationMs": 100
+        },
+        {
+          "x": 869,
+          "y": 71,
+          "w": 232,
+          "h": 376,
+          "originX": 116.0,
+          "originY": 376,
+          "durationMs": 100
+        },
+        {
+          "x": 1208,
+          "y": 26,
+          "w": 342,
+          "h": 421,
+          "originX": 171.0,
+          "originY": 421,
+          "durationMs": 100
+        },
+        {
+          "x": 1644,
+          "y": 65,
+          "w": 258,
+          "h": 382,
+          "originX": 129.0,
+          "originY": 382,
+          "durationMs": 100
+        }
+      ]
+    },
+    "crouch": {
+      "frames": 3,
+      "fps": 9,
+      "loop": false,
+      "priority": 20,
+      "file": "sheets/crouch.png",
+      "description": "Down transition, held crouch, recover frame.",
+      "imageWidth": 1158,
+      "imageHeight": 553,
+      "cellWidth": 386,
+      "cellHeight": 553,
+      "frameRects": [
+        {
+          "x": 26,
+          "y": 34,
+          "w": 334,
+          "h": 493,
+          "originX": 167.0,
+          "originY": 493,
+          "durationMs": 111
+        },
+        {
+          "x": 423,
+          "y": 133,
+          "w": 312,
+          "h": 394,
+          "originX": 156.0,
+          "originY": 394,
+          "durationMs": 111
+        },
+        {
+          "x": 802,
+          "y": 26,
+          "w": 326,
+          "h": 501,
+          "originX": 163.0,
+          "originY": 501,
+          "durationMs": 111
+        }
+      ]
+    },
+    "dash": {
+      "frames": 4,
+      "fps": 18,
+      "loop": false,
+      "priority": 10,
+      "file": "sheets/dash.png",
+      "description": "Burst action with anticipation, stretched motion, follow-through.",
+      "imageWidth": 2276,
+      "imageHeight": 461,
+      "cellWidth": 569,
+      "cellHeight": 461,
+      "frameRects": [
+        {
+          "x": 79,
+          "y": 54,
+          "w": 416,
+          "h": 381,
+          "originX": 208.0,
+          "originY": 381,
+          "durationMs": 56
+        },
+        {
+          "x": 620,
+          "y": 75,
+          "w": 461,
+          "h": 360,
+          "originX": 230.5,
+          "originY": 360,
+          "durationMs": 56
+        },
+        {
+          "x": 1158,
+          "y": 130,
+          "w": 526,
+          "h": 305,
+          "originX": 263.0,
+          "originY": 305,
+          "durationMs": 56
+        },
+        {
+          "x": 1865,
+          "y": 26,
+          "w": 253,
+          "h": 409,
+          "originX": 126.5,
+          "originY": 409,
+          "durationMs": 56
+        }
+      ]
+    },
+    "skid": {
+      "frames": 4,
+      "fps": 12,
+      "loop": false,
+      "priority": 15,
+      "file": "sheets/skid.png",
+      "description": "Braking and direction-change recovery.",
+      "imageWidth": 1960,
+      "imageHeight": 516,
+      "cellWidth": 490,
+      "cellHeight": 516,
+      "frameRects": [
+        {
+          "x": 69,
+          "y": 41,
+          "w": 352,
+          "h": 449,
+          "originX": 176.0,
+          "originY": 449,
+          "durationMs": 83
+        },
+        {
+          "x": 516,
+          "y": 57,
+          "w": 438,
+          "h": 433,
+          "originX": 219.0,
+          "originY": 433,
+          "durationMs": 83
+        },
+        {
+          "x": 1050,
+          "y": 46,
+          "w": 349,
+          "h": 444,
+          "originX": 174.5,
+          "originY": 444,
+          "durationMs": 83
+        },
+        {
+          "x": 1531,
+          "y": 26,
+          "w": 368,
+          "h": 464,
+          "originX": 184.0,
+          "originY": 464,
+          "durationMs": 83
+        }
+      ]
+    }
+  },
+  "stateMachinePriority": [
+    "dash",
+    "crouch",
+    "jump",
+    "sprint",
+    "run",
+    "walk",
+    "idle"
+  ],
+  "controls": {
+    "move": [
+      "ArrowLeft",
+      "ArrowRight",
+      "A",
+      "D"
+    ],
+    "sprint": [
+      "ShiftLeft",
+      "ShiftRight"
+    ],
+    "jump": [
+      "Space",
+      "ArrowUp",
+      "KeyW"
+    ],
+    "crouch": [
+      "ArrowDown",
+      "KeyS"
+    ],
+    "dash": [
+      "KeyX",
+      "KeyJ"
+    ]
+  }
+}
